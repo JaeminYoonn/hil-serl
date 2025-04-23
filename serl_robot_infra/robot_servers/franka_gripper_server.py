@@ -12,8 +12,8 @@ class FrankaGripperServer(GripperServer):
         super().__init__()
         self.node = node
 
-        self.gripper_move_client = ActionClient(self.node, Move, "~/move")
-        self.gripper_grasp_client = ActionClient(self.node, Grasp, "~/grasp")
+        self.gripper_move_client = ActionClient(self.node, Move, "/fr3_gripper/move")
+        self.gripper_grasp_client = ActionClient(self.node, Grasp, "/fr3_gripper/grasp")
 
         self.gripper_sub = self.node.create_subscription(
             JointState, "/franka_gripper/joint_states", self._update_gripper, 10
@@ -42,13 +42,15 @@ class FrankaGripperServer(GripperServer):
         goal_msg = Grasp.Goal()
         goal_msg.width = 0.01
         goal_msg.speed = 0.3
-        goal_msg.epsilon.inner = 1
-        goal_msg.epsilon.outer = 1
-        goal_msg.force = 130
+        goal_msg.epsilon.inner = 1.0
+        goal_msg.epsilon.outer = 1.0
+        goal_msg.force = 130.0
 
+        print("A")
         self.gripper_grasp_client.wait_for_server()
         self.node.get_logger().info("Sending grasp goal request...")
         self._send_goal_future = self.gripper_grasp_client.send_goal_async(goal_msg)
+        print("B")
 
         self.binary_gripper_pose = 1
 
@@ -59,9 +61,9 @@ class FrankaGripperServer(GripperServer):
         goal_msg = Grasp.Goal()
         goal_msg.width = 0.01
         goal_msg.speed = 0.1
-        goal_msg.epsilon.inner = 1
-        goal_msg.epsilon.outer = 1
-        goal_msg.force = 130
+        goal_msg.epsilon.inner = 1.0
+        goal_msg.epsilon.outer = 1.0
+        goal_msg.force = 130.0
 
         self.gripper_grasp_client.wait_for_server()
         self.node.get_logger().info("Sending grasp goal request...")

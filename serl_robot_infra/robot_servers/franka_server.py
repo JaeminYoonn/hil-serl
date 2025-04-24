@@ -15,7 +15,9 @@ from absl import app, flags
 from geometry_msgs.msg import PoseStamped
 from geometry_msgs.msg import WrenchStamped
 from sensor_msgs.msg import JointState
+from std_srvs.srv import Trigger
 from hday_controller_msgs.srv import ControllerGain
+from hday_motion_planner_msgs.srv import Move
 import threading
 from robot_servers.franka_gripper_server import FrankaGripperServer
 
@@ -60,6 +62,28 @@ class FrankaServer:
         while not self.gain_client.wait_for_service(timeout_sec=1.0):
             self.node.get_logger().warn("Waiting for Gain Change Server")
 
+        self.reset_cartesian_impedance_client = self.node.create_client(
+            Trigger,
+            "/hday/fr3_controller/reset_serl_cartesian_impedance_controller",
+        )
+        while not self.reset_cartesian_impedance_client.wait_for_service(
+            timeout_sec=1.0
+        ):
+            self.node.get_logger().warn("Waiting for Cartesian Impedance Server")
+
+        self.reset_joint_impedance_client = self.node.create_client(
+            Trigger,
+            "/hday/fr3_controller/reset_joint_impedance_controller",
+        )
+        while not self.reset_joint_impedance_client.wait_for_service(timeout_sec=1.0):
+            self.node.get_logger().warn("Waiting for Joint Impedance Server")
+
+        self.motion_planner_client = self.create_client(
+            Move, "/hday/engine/motion_planner/move"
+        )
+        while not self.motion_planner_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().warn("Waiting for Motion Planner Server")
+
         self.eesub = self.node.create_subscription(
             PoseStamped, "/hday/rt_franka/ef_pose", self._set_currpos, 10
         )
@@ -71,10 +95,44 @@ class FrankaServer:
         )
 
     def reset_joint(self):
-        ######### TODO ###############
         """Resets Joints (needed after running for hours)"""
-        # rospy.set_param("/target_joint_positions", self.reset_joint_target)
-        pass
+        request = Trigger.Request()
+        future = self.reset_cartesian_impedance_client.call_async(request)
+        print("STOPPING CARTESIAN IMPEDANCE CONTROLLER")
+        time.sleep(3)
+
+        joint_state_msg = JointState()
+        joint_state_msg.header.stamp = self.node.get_clock().now().to_msg()
+        joint_state_msg.header.frame_id = "link0"
+        joint_state_msg.position = self.reset_joint_target
+        for i in range(len(joint_state_msg.position)):
+            joint_state_msg.name.append("joint" + str(i + 1))
+
+        move_srv = Move.Request()
+        move_srv.stamp = joint_state_msg.header.stamp
+        move_srv.joint_target = joint_state_msg
+
+        future = self.motion_planner_client.call_async(move_srv)
+        print("RUNNING JOINT RESET")
+
+        # Wait until target joint angles are reached
+        count = 0
+        while True:
+            if future.done():
+                break
+            else:
+                print("WAITING MP RESULT TO RESET")
+                time.sleep(1)
+                count += 1
+                if count > 30:
+                    print("joint reset TIMEOUT")
+                    break
+
+        print("RESET DONE")
+        request = Trigger.Request()
+        future = self.reset_joint_impedance_client.call_async(request)
+        print("STOPPING Joint IMPEDANCE CONTROLLER")
+        time.sleep(1)
 
     def pub_gain(self, param):
         srv = ControllerGain.Request()
@@ -214,6 +272,12 @@ def main(_):
     @webapp.route("/get_gripper", methods=["POST"])
     def get_gripper():
         return jsonify({"gripper": gripper_server.gripper_pos})
+
+    # Route for Running Joint Reset
+    @webapp.route("/jointreset", methods=["POST"])
+    def joint_reset():
+        robot_server.reset_joint()
+        return "Reset Joint"
 
     # Route for Activating the Gripper
     @webapp.route("/activate_gripper", methods=["POST"])

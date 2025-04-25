@@ -8,11 +8,24 @@ import copy
 import gymnasium as gym
 import time
 from franka_env.envs.franka_env import FrankaEnv
+from pynput import keyboard
 
 
 class HollyEnv(FrankaEnv):
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
+        # self.should_regrasp = True
+        self.should_regrasp = False
+
+        def on_press(key):
+            # if str(key) == "Key.f1":
+            #     self.should_regrasp = True
+            if str(key) == "'m'":
+                self.should_regrasp = True
+
+        listener = keyboard.Listener(
+            on_press=on_press)
+        listener.start()
 
     def init_cameras(self, name_serial_dict=None):
         """Init both wrist cameras."""
@@ -24,61 +37,49 @@ class HollyEnv(FrankaEnv):
             if cam_name == "side_classifier":
                 self.cap["side_classifier"] = self.cap["side_policy"]
             else:
-                cap = VideoCapture(RSCapture(name=cam_name, **kwargs))
+                cap = VideoCapture(
+                    RSCapture(name=cam_name, **kwargs)
+                )
                 self.cap[cam_name] = cap
 
-    def reset(self, **kwargs):
-        self._recover()
-        self._update_currpos()
-        self._send_pos_command(self.currpos)
-        time.sleep(0.1)
-        requests.post(self.url + "update_param", json=self.config.PRECISION_PARAM)
-        self._send_gripper_command(1.0)
+        if self.cap is not None:  # close cameras if they are already open
+            self.close_cameras()
 
-        # Move above the target pose
-        target = copy.deepcopy(self.currpos)
-        target[2] = self.config.TARGET_POSE[2] + 0.05
-        self.interpolate_move(target, timeout=0.5)
-        time.sleep(0.5)
-        self.interpolate_move(self.config.TARGET_POSE, timeout=0.5)
-        time.sleep(0.5)
-        self._send_gripper_command(-1.0)
+        self.cap = OrderedDict()
+        for cam_name, kwargs in name_serial_dict.items():
+            if cam_name == "side_classifier":
+                self.cap["side_classifier"] = self.cap["side_policy"]
+            else:
+                cap = VideoCapture(
+                    RSCapture(name=cam_name, **kwargs)
+                )
+                self.cap[cam_name] = cap
 
-        self._update_currpos()
-        reset_pose = copy.deepcopy(self.config.TARGET_POSE)
-        reset_pose[1] += 0.04
-        self.interpolate_move(reset_pose, timeout=0.5)
-
-        obs, info = super().reset(**kwargs)
-        self._send_gripper_command(1.0)
-        time.sleep(1)
-        self.success = False
-        self._update_currpos()
-        obs = self._get_obs()
-        return obs, info
-
-    def interpolate_move(self, goal: np.ndarray, timeout: float):
-        """Move the robot to the goal position with linear interpolation."""
-        if goal.shape == (6,):
-            goal = np.concatenate([goal[:3], euler_2_quat(goal[3:])])
-        self._send_pos_command(goal)
-        time.sleep(timeout)
-        self._update_currpos()
 
     def go_to_reset(self, joint_reset=False):
         """
-        The concrete steps to perform reset should be
-        implemented each subclass for the specific task.
-        Should override this method if custom reset procedure is needed.
-        """
+        Move to the rest position defined in base class.
+        Add a small z offset before going to rest to avoid collision with object.
+        """        
+        # use compliance mode for coupled reset
+        self._update_currpos()
+        self._send_pos_command(self.currpos)
+        time.sleep(0.3)
+        requests.post(self.url + "update_param", json=self.config.PRECISION_PARAM)
 
-        # Perform joint reset if needed
+        # pull up
+        self._update_currpos()
+        reset_pose = copy.deepcopy(self.currpos)
+        reset_pose[2] = self.resetpos[2] + 0.04
+        self.interpolate_move(reset_pose, timeout=1)
+
+        # perform joint reset if needed
         if joint_reset:
             print("JOINT RESET")
             requests.post(self.url + "jointreset")
             time.sleep(0.5)
 
-        # Perform Carteasian reset
+        # perform Cartesian reset
         if self.randomreset:  # randomize reset position in xy plane
             reset_pose = self.resetpos.copy()
             reset_pose[:2] += np.random.uniform(
@@ -89,13 +90,82 @@ class HollyEnv(FrankaEnv):
                 -self.random_rz_range, self.random_rz_range
             )
             reset_pose[3:] = euler_2_quat(euler_random)
-            self.interpolate_move(reset_pose, timeout=1)
+            self._send_pos_command(reset_pose)
         else:
             reset_pose = self.resetpos.copy()
-            self.interpolate_move(reset_pose, timeout=1)
+            self._send_pos_command(reset_pose)
+        time.sleep(0.5)
 
         # Change to compliance mode
         requests.post(self.url + "update_param", json=self.config.COMPLIANCE_PARAM)
+
+
+    def regrasp(self):
+        # use compliance mode for coupled reset
+        self._update_currpos()
+        self._send_pos_command(self.currpos)
+        time.sleep(0.3)
+        requests.post(self.url + "update_param", json=self.config.PRECISION_PARAM)
+
+        # pull up
+        self._update_currpos()
+        reset_pose = copy.deepcopy(self.currpos)
+        reset_pose[2] = self.resetpos[2] + 0.04
+        self.interpolate_move(reset_pose, timeout=1)
+
+        input("Press enter to release gripper...")
+        self._send_gripper_command(1.0)
+        input("Place RAM in holder and press enter to grasp...")
+        top_pose = self.config.GRASP_POSE.copy()
+        top_pose[2] += 0.05
+        top_pose[0] += np.random.uniform(-0.005, 0.005)
+        self.interpolate_move(top_pose, timeout=1)
+        time.sleep(0.5)
+
+        grasp_pose = top_pose.copy()
+        grasp_pose[2] -= 0.05
+        self.interpolate_move(grasp_pose, timeout=0.5)
+
+        requests.post(self.url + "close_gripper_slow")
+        self.last_gripper_act = time.time()
+        time.sleep(2)
+
+        self.interpolate_move(top_pose, timeout=0.5)
+        time.sleep(0.2)
+
+        self.interpolate_move(self.config.RESET_POSE, timeout=1)
+        time.sleep(0.5)
+
+
+    def reset(self, joint_reset=False, **kwargs):
+        self.last_gripper_act = time.time()
+        if self.save_video:
+            self.save_video_recording()
+
+        # if True:
+        if self.should_regrasp:
+            self.regrasp()
+            self.should_regrasp = False
+
+        self._recover()
+        self.go_to_reset(joint_reset=False)
+        self._recover()
+        self.curr_path_length = 0
+
+        self._update_currpos()
+        obs = self._get_obs()
+        requests.post(self.url + "update_param", json=self.config.COMPLIANCE_PARAM)
+        self.terminate = False
+        return obs, {}
+
+    def interpolate_move(self, goal: np.ndarray, timeout: float):
+        """Move the robot to the goal position with linear interpolation."""
+        if goal.shape == (6,):
+            goal = np.concatenate([goal[:3], euler_2_quat(goal[3:])])
+        self._send_pos_command(goal)
+        time.sleep(timeout)
+        self._update_currpos()
+
 
 
 class GripperPenaltyWrapper(gym.Wrapper):

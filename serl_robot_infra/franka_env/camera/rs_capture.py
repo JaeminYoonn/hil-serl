@@ -10,6 +10,7 @@ class RSCapture:
     def __init__(self, name, serial_number, dim=(640, 480), fps=15, depth=False, exposure=40000):
         self.name = name
         assert serial_number in self.get_device_serial_numbers()
+
         self.serial_number = serial_number
         self.depth = depth
         self.pipe = rs.pipeline()

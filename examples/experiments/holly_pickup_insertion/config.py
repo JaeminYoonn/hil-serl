@@ -22,37 +22,44 @@ class EnvConfig(DefaultEnvConfig):
     SERVER_URL: str = "http://127.0.0.1:5000/"
     REALSENSE_CAMERAS = {
         "side_policy": {
-            "serial_number": "130322274175",
+            "serial_number": "234322302442",
             "dim": (1280, 720),
             "exposure": 13000,
         },
         "side_classifier": {
-            "serial_number": "130322274175",
+            "serial_number": "234322302442",
             "dim": (1280, 720),
             "exposure": 13000,
         },
     }
     IMAGE_CROP = {
-        "side_policy": lambda img: img[250:500, 350:650],
-        "side_classifier": lambda img: img[270:398, 500:628],
+        # "side_policy": lambda img: img[250:500, 350:650],
+        # "side_classifier": lambda img: img[270:398, 500:628],
+        "side_policy": lambda img: img[360:540, 430:830],
+        "side_classifier": lambda img: img[360:540, 430:630],
     }
-    TARGET_POSE = np.array(
-        [0.553, 0.1769683108549487, 0.25097833796596336, np.pi, 0, np.pi]
+    GRASP_POSE = np.array(
+        [0.423, 0.057, 0.184, np.pi, 0, 0]
     )
-    RESET_POSE = TARGET_POSE + np.array([0, 0.03, 0.05, 0, 0, 0])
+    TARGET_POSE = np.array(
+        [0.42, -0.09, 0.21, np.pi, 0, 0]
+    )
+    RESET_POSE = TARGET_POSE + np.array([0, 0.0, 0.05, 0, 0, 0])
     ACTION_SCALE = np.array([0.015, 0.1, 1])
     RANDOM_RESET = True
     DISPLAY_IMAGE = True
     RANDOM_XY_RANGE = 0.01
     RANDOM_RZ_RANGE = 0.1
-    ABS_POSE_LIMIT_HIGH = TARGET_POSE + np.array([0.03, 0.06, 0.05, 0.1, 0.1, 0.3])
-    ABS_POSE_LIMIT_LOW = TARGET_POSE - np.array([0.03, 0.01, 0.03, 0.1, 0.1, 0.3])
+    # ABS_POSE_LIMIT_HIGH = TARGET_POSE + np.array([0.03, 0.06, 0.05, 0.1, 0.1, 0.3])
+    # ABS_POSE_LIMIT_LOW = TARGET_POSE - np.array([0.03, 0.01, 0.03, 0.1, 0.1, 0.3])
+    ABS_POSE_LIMIT_HIGH = TARGET_POSE + np.array([0.03, 0.03, 0.03, 0.3, 0.3, 0.3])
+    ABS_POSE_LIMIT_LOW = TARGET_POSE - np.array([0.03, 0.03, 0.03, 0.3, 0.3, 0.3])
     COMPLIANCE_PARAM = {
-        "translational_stiffness": 2000,
-        "translational_damping": 89,
-        "rotational_stiffness": 150,
-        "rotational_damping": 7,
-        "translational_Ki": 0,
+        "translational_stiffness": 2000.0,
+        "translational_damping": 89.0,
+        "rotational_stiffness": 150.0,
+        "rotational_damping": 7.0,
+        "translational_Ki": 0.0,
         "translational_clip_x": 0.006,
         "translational_clip_y": 0.0059,
         "translational_clip_z": 0.0035,
@@ -68,10 +75,10 @@ class EnvConfig(DefaultEnvConfig):
         "rotational_Ki": 0,
     }
     PRECISION_PARAM = {
-        "translational_stiffness": 2000,
-        "translational_damping": 89,
-        "rotational_stiffness": 150,
-        "rotational_damping": 7,
+        "translational_stiffness": 2000.0,
+        "translational_damping": 89.0,
+        "rotational_stiffness": 150.0,
+        "rotational_damping": 7.0,
         "translational_Ki": 0.0,
         "translational_clip_x": 0.01,
         "translational_clip_y": 0.01,

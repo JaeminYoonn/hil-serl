@@ -33,7 +33,7 @@ flags.DEFINE_string(
 )
 flags.DEFINE_list(
     "reset_joint_target",
-    [0, 0, 0, -1.9, -0, 2, 0],
+    [0.0, -0.785, 0.0, -2.356, -0.0, 1.571, 0.785],
     "Target joint angles for the robot to reset to",
 )
 flags.DEFINE_string("flask_url", "127.0.0.1", "URL for the flask server to run on.")
@@ -78,11 +78,11 @@ class FrankaServer:
         while not self.reset_joint_impedance_client.wait_for_service(timeout_sec=1.0):
             self.node.get_logger().warn("Waiting for Joint Impedance Server")
 
-        self.motion_planner_client = self.create_client(
+        self.motion_planner_client = self.node.create_client(
             Move, "/hday/engine/motion_planner/move"
         )
         while not self.motion_planner_client.wait_for_service(timeout_sec=1.0):
-            self.get_logger().warn("Waiting for Motion Planner Server")
+            self.node.get_logger().warn("Waiting for Motion Planner Server")
 
         self.eesub = self.node.create_subscription(
             PoseStamped, "/hday/rt_franka/ef_pose", self._set_currpos, 10
@@ -99,11 +99,14 @@ class FrankaServer:
         request = Trigger.Request()
         future = self.reset_cartesian_impedance_client.call_async(request)
         print("STOPPING CARTESIAN IMPEDANCE CONTROLLER")
-        time.sleep(3)
+        time.sleep(1)
 
         joint_state_msg = JointState()
         joint_state_msg.header.stamp = self.node.get_clock().now().to_msg()
         joint_state_msg.header.frame_id = "link0"
+        print("Reset target:", self.reset_joint_target)
+        print("Types in list:", [type(x) for x in self.reset_joint_target])
+
         joint_state_msg.position = self.reset_joint_target
         for i in range(len(joint_state_msg.position)):
             joint_state_msg.name.append("joint" + str(i + 1))

@@ -64,6 +64,7 @@ def main(_):
 
         if done or truncated:
             obs, _ = env.reset()
+        print("Length of Success/Failures: ", len(successes), "/", len(failures))
 
     if not os.path.exists("./classifier_data"):
         os.makedirs("./classifier_data")

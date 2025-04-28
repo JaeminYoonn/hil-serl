@@ -158,14 +158,6 @@ class HollyEnv(FrankaEnv):
         self.terminate = False
         return obs, {}
 
-    def interpolate_move(self, goal: np.ndarray, timeout: float):
-        """Move the robot to the goal position with linear interpolation."""
-        if goal.shape == (6,):
-            goal = np.concatenate([goal[:3], euler_2_quat(goal[3:])])
-        self._send_pos_command(goal)
-        time.sleep(timeout)
-        self._update_currpos()
-
 
 
 class GripperPenaltyWrapper(gym.Wrapper):

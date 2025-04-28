@@ -1,2 +1,6 @@
 **/*.egg-info/**
 **/__pycache__/**
+examples/experiments/holly_pickup_insertion/classifier_ckpt
+examples/experiments/holly_pickup_insertion/classifier_data
+examples/experiments/holly_pickup_insertion/demo_data
+

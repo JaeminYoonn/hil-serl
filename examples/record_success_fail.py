@@ -19,7 +19,10 @@ def on_press(key):
     global success_key
     try:
         if str(key) == 'Key.space':
-            success_key = True
+            if success_key:
+                success_key = False
+            else:
+                success_key = True
     except AttributeError:
         pass
 
@@ -58,13 +61,15 @@ def main(_):
         if success_key:
             successes.append(transition)
             pbar.update(1)
-            success_key = False
+            # success_key = False
         else:
             failures.append(transition)
 
         if done or truncated:
+            success_key = False
             obs, _ = env.reset()
         print("Length of Success/Failures: ", len(successes), "/", len(failures))
+        print("Success or not: ", success_key)
 
     if not os.path.exists("./classifier_data"):
         os.makedirs("./classifier_data")

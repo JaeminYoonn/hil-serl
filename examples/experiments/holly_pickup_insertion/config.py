@@ -94,7 +94,7 @@ class EnvConfig(DefaultEnvConfig):
         "rotational_clip_neg_z": 0.03,
         "rotational_Ki": 0.0,
     }
-    MAX_EPISODE_LENGTH = 120
+    MAX_EPISODE_LENGTH = 200
 
 
 class TrainConfig(DefaultTrainingConfig):
@@ -127,7 +127,7 @@ class TrainConfig(DefaultTrainingConfig):
 
             def reward_func(obs):
                 sigmoid = lambda x: 1 / (1 + jnp.exp(-x))
-                return int(sigmoid(classifier(obs)) > 0.7 and obs["state"][0, 0] > 0.4)
+                return int(sigmoid(classifier(obs)[0]) > 0.7 and obs["state"][0, 0] > 0.4)
 
             env = MultiCameraBinaryRewardClassifierWrapper(env, reward_func)
         env = GripperPenaltyWrapper(env, penalty=-0.02)
